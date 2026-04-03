@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sawasdee - 태국어 단어 퀴즈</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+Thai:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #D71920; /* 태국 국기 빨강 */
+            --secondary-color: #00247D; /* 태국 국기 파랑 */
+            --accent-color: #F7D117; /* 황금색 */
+            --bg-color: #f4f4f4;
+            --white: #ffffff;
+            --correct: #28a745;
+            --wrong: #dc3545;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans Thai', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        #game-container {
+            width: 90%;
+            max-width: 500px;
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        h1 { color: var(--primary-color); margin-bottom: 20px; }
+        .hidden { display: none !important; }
+
+        /* 시작 화면 */
+        .input-group { margin: 20px 0; }
+        input[type="text"] {
+            width: 80%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--secondary-color); }
+
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-weight: bold;
+        }
+        .btn:hover { opacity: 0.8; }
+
+        /* 퀴즈 화면 */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-weight: bold;
+            color: #666;
+        }
+        .question-box {
+            background: #fff8e1;
+            padding: 40px 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 2px solid var(--accent-color);
+        }
+        .thai-word { font-size: 48px; color: var(--secondary-color); margin: 0; }
+        
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .option-btn {
+            background: #eee;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .option-btn.correct { background-color: var(--correct) !important; color: white; }
+        .option-btn.wrong { background-color: var(--wrong) !important; color: white; }
+
+        /* 결과 & 랭킹 */
+        .ranking-list {
+            text-align: left;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+        .incorrect-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+            text-align: left;
+            background: #fff0f0;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .incorrect-item { font-size: 14px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- 1. 시작 화면 -->
+    <div id="screen-start">
+        <h1 style="font-size: 2.5rem;">สวัสดี (Sawasdee)</h1>
+        <p>태국어 단어 10문제를 맞춰보세요!</p>
+        <div class="input-group">
+            <input type="text" id="nickname" placeholder="닉네임을 입력하세요" maxlength="10">
+        </div>
+        <button class="btn" onclick="startGame()">게임 시작</button>
+    </div>
+
+    <!-- 2. 퀴즈 화면 -->
+    <div id="screen-quiz" class="hidden">
+        <div class="status-bar">
+            <span id="progress">1/10</span>
+            <span id="current-score">점수: 0</span>
+        </div>
+        <div class="question-box">
+            <h2 class="thai-word" id="thai-display">?</h2>
+        </div>
+        <div class="options-grid" id="options-container"></div>
+    </div>
+
+    <!-- 3. 결과 화면 -->
+    <div id="screen-result" class="hidden">
+        <h2>게임 종료!</h2>
+        <h1 id="final-score" style="font-size: 3rem;">0점</h1>
+        <p id="result-msg"></p>
+        
+        <h3>🏆 실시간 TOP 5 랭킹</h3>
+        <div id="ranking-board" class="ranking-list">Loading...</div>
+
+        <button class="btn" style="margin-top:20px;" onclick="toggleIncorrect()">오답 노트 확인</button>
+        <div id="incorrect-container" class="incorrect-list hidden"></div>
+        
+        <br>
+        <button class="btn" style="margin-top:20px; background: var(--secondary-color);" onclick="location.reload()">다시 하기</button>
+    </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp } 
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // [ Firebase 설정 적용됨 ]
+    const firebaseConfig = {
+        apiKey: "AIzaSyDiPua6665BUbqfFQB_gSG-w5YNMSxcbsM",
+        authDomain: "my-thai-quiz.firebaseapp.com",
+        projectId: "my-thai-quiz",
+        storageBucket: "my-thai-quiz.firebasestorage.app",
+        messagingSenderId: "827349584911",
+        appId: "1:827349584911:web:18dc7d8f47047d5c5aa77a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const wordDb = [
+        { th: "สวัสดี", ko: "안녕하세요" }, { th: "ขอบคุณ", ko: "감사합니다" }, { th: "ขอโทษ", ko: "미안합니다" },
+        { th: "ใช่", ko: "네/예" }, { th: "ไม่ใช่", ko: "아니요" }, { th: "น้ำ", ko: "물" },
+        { th: "밥", ko: "ข้าว" }, { th: "กิน", ko: "먹다" }, { th: "ไป", ko: "가다" },
+        { th: "มา", ko: "오다" }, { th: "รัก", ko: "사랑하다" }, { th: "สวย", ko: "예쁘다" },
+        { th: "หล่อ", ko: "잘생겼다" }, { th: "ดี", ko: "좋다" }, { th: "ร้อน", ko: "덥다" },
+        { th: "หนาว", ko: "춥다" }, { th: "หิว", ko: "배고프다" }, { th: "นอน", ko: "자다" },
+        { th: "เรียน", ko: "공부하다" }, { th: "ทำงาน", ko: "일하다" }, { th: "ซื้อ", ko: "사다" },
+        { th: "ขาย", ko: "팔다" }, { th: "ถูก", ko: "싸다/맞다" }, { th: "แพง", ko: "비싸다" },
+        { th: "อร่อย", ko: "맛있다" }, { th: "เผ็ด", ko: "맵다" }, { th: "หวาน", ko: "달다" },
+        { th: "เปรี้ยว", ko: "시다" }, { th: "เค็ม", ko: "짜다" }, { th: "ขม", ko: "쓰다" },
+        { th: "ใหญ่", ko: "크다" }, { th: "เล็ก", ko: "작다" }, { th: "มาก", ko: "많이/매우" },
+        { th: "นิดหน่อย", ko: "조금" }, { th: "ไกล", ko: "멀다" }, { th: "ใกล้", ko: "가깝다" },
+        { th: "วันนี้", ko: "오늘" }, { th: "พรุ่งนี้", ko: "내일" }, { th: "เมื่อวาน", ko: "어제" },
+        { th: "ตอนนี้", ko: "지금" }, { th: "เวลา", ko: "시간" }, { th: "เงิน", ko: "돈" },
+        { th: "เพื่อน", ko: "친구" }, { th: "บ้าน", ko: "집" }, { th: "โรงเรียน", ko: "학교" },
+        { th: "ร้านอาหาร", ko: "식당" }, { th: "ตลาด", ko: "시장" }, { th: "ห้องน้ำ", ko: "화장실" },
+        { th: "โทรศัพท์", ko: "전화기" }, { th: "รถ", ko: "자동차" }, { th: "เครื่องบิน", ko: "비행기" },
+        { th: "ทะเล", ko: "바다" }, { th: "ภูเขา", ko: "산" }, { th: "ต้นไม้", ko: "나무" },
+        { th: "ดอกไม้", ko: "꽃" }, { th: "ผลไม้", ko: "과일" }, { th: "ไก่", ko: "닭" },
+        { th: "หมู", ko: "돼지" }, { th: "เนื้อ", ko: "소고기" }, { th: "ปลา", ko: "생선" },
+        { th: "ไข่", ko: "계란" }, { th: "ขนมปัง", ko: "빵" }, { th: "นม", ko: "우유" },
+        { th: "เบียร์", ko: "맥주" }, { th: "กาแฟ", ko: "커피" }, { th: "ชา", ko: "차(음료)" },
+        { th: "สีแดง", ko: "빨간색" }, { th: "สีฟ้า", ko: "파란색" }, { th: "สีเหลือง", ko: "노란색" },
+        { th: "สีดำ", ko: "검은색" }, { th: "สีขาว", ko: "하얀색" }, { th: "หนึ่ง", ko: "1" },
+        { th: "สอง", ko: "2" }, { th: "สาม", ko: "3" }, { th: "สี่", ko: "4" },
+        { th: "ห้า", ko: "5" }, { th: "หก", ko: "6" }, { th: "เจ็ด", ko: "7" },
+        { th: "แปด", ko: "8" }, { th: "เก้า", ko: "9" }, { th: "สิบ", ko: "10" },
+        { th: "มือ", ko: "손" }, { th: "เท้า", ko: "발" }, { th: "ตา", ko: "눈" },
+        { th: "หู", ko: "귀" }, { th: "จมูก", ko: "코" }, { th: "ปาก", ko: "입" },
+        { th: "หัว", ko: "머리" }, { th: "ขา", ko: "다리" }, { th: "ใจ", ko: "마음" },
+        { th: "ยิ้ม", ko: "웃다" }, { th: "พูด", ko: "말하다" }, { th: "ฟัง", ko: "듣다" },
+        { th: "อ่าน", ko: "อ่าน" }, { th: "เขียน", ko: "เขียน" }, { th: "ดู", ko: "보다" },
+        { th: "รอ", ko: "기다리다" }, { th: "สนุก", ko: "즐겁다" }, { th: "คิด", ko: "생각하다" },
+        { th: "เข้าใจ", ko: "이해하다" }
+    ];
+
+    let currentIdx = 0;
+    let score = 0;
+    let nickname = "";
+    let gameWords = [];
+    let incorrectWords = [];
+
+    window.startGame = function() {
+        nickname = document.getElementById('nickname').value.trim();
+        if(!nickname) { alert("닉네임을 입력해주세요!"); return; }
+        gameWords = [...wordDb].sort(() => 0.5 - Math.random()).slice(0, 10);
+        document.getElementById('screen-start').classList.add('hidden');
+        document.getElementById('screen-quiz').classList.remove('hidden');
+        loadQuestion();
+    }
+
+    function loadQuestion() {
+        if(currentIdx >= 10) { finishGame(); return; }
+        const currentWord = gameWords[currentIdx];
+        document.getElementById('progress').innerText = `${currentIdx + 1} / 10`;
+        document.getElementById('thai-display').innerText = currentWord.th;
+        
+        let options = [currentWord.ko];
+        let others = wordDb.filter(w => w.ko !== currentWord.ko).sort(() => 0.5 - Math.random()).slice(0, 3);
+        others.forEach(w => options.push(w.ko));
+        options.sort(() => 0.5 - Math.random());
+
+        const container = document.getElementById('options-container');
+        container.innerHTML = '';
+        options.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = opt;
+            btn.onclick = () => checkAnswer(opt, currentWord.ko, btn);
+            container.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(selected, correct, btn) {
+        const buttons = document.querySelectorAll('.option-btn');
+        buttons.forEach(b => b.disabled = true);
+        if(selected === correct) {
+            score += 10;
+            btn.classList.add('correct');
+        } else {
+            btn.classList.add('wrong');
+            buttons.forEach(b => { if(b.innerText === correct) b.classList.add('correct'); });
+            incorrectWords.push(gameWords[currentIdx]);
+        }
+        document.getElementById('current-score').innerText = `점수: ${score}`;
+        setTimeout(() => { currentIdx++; loadQuestion(); }, 1000);
+    }
+
+    async function finishGame() {
+        document.getElementById('screen-quiz').classList.add('hidden');
+        document.getElementById('screen-result').classList.remove('hidden');
+        document.getElementById('final-score').innerText = `${score}점`;
+
+        try {
+            await addDoc(collection(db, "scores"), {
+                nickname: nickname,
+                score: score,
+                timestamp: serverTimestamp()
+            });
+            loadRanking();
+        } catch (e) { console.error(e); }
+
+        const incContainer = document.getElementById('incorrect-container');
+        incContainer.innerHTML = incorrectWords.length === 0 ? "만점입니다! 틀린 단어가 없어요." : 
+            incorrectWords.map(w => `<div class="incorrect-item">❌ ${w.th} : ${w.ko}</div>`).join('');
+    }
+
+    async function loadRanking() {
+        const q = query(collection(db, "scores"), orderBy("score", "desc"), orderBy("timestamp", "desc"), limit(5));
+        const querySnapshot = await getDocs(q);
+        const board = document.getElementById('ranking-board');
+        board.innerHTML = '';
+        let i = 1;
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            board.innerHTML += `<div class="ranking-item"><span>${i++}. ${data.nickname}</span> <b>${data.score}점</b></div>`;
+        });
+    }
+
+    window.toggleIncorrect = function() {
+        document.getElementById('incorrect-container').classList.toggle('hidden');
+    }
+</script>
+
+</body>
+</html>
